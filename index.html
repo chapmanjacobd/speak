@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Sender</title>
+    <link rel="stylesheet" type="text/css" href="https://unli.xyz/awsm_theme_pearl-lusta.css" media="all">
+    <script src="https://cdn.jsdelivr.net/gh/ryangjchandler/spruce@0.6.1/dist/spruce.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.4.1/dist/alpine.min.js"></script>
+</head>
+
+<body>
+    <div x-data="{}" x-subscribe>
+
+        <textarea id="lines" x-model="$store.settings.lines" placeholder="Paste text here"></textarea>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0;">
+            <h4 x-text="$store.settings.lines.split('\n').filter(Boolean).length + ' lines' " style="margin: 0;"></h4>
+
+            <button
+                @click="speechSynthesis.speaking ? speechSynthesis.cancel(): playLines($store.settings.lines.split('\n').filter(Boolean)) ">Speak</button>
+        </div>
+
+        <select name="voices" x-model="$store.settings.voice" class="">
+            <template x-for="option in speechSynthesis.getVoices()" :key="option">
+                <option :value="option.voiceURI" x-text="option.name"></option>
+            </template>
+        </select>
+
+        <div>
+            <div>
+                <p>Volume</p>
+                <input type="range" min="0.0" max="1.0" value="1.0" step="0.1" x-model="$store.settings.volume" />
+            </div>
+            <div>
+                <p>Rate</p>
+                <input type="range" min="0.1" max="8.0" value="1.0" id="rate" step="0.1"
+                    x-model="$store.settings.rate" />
+            </div>
+            <div>
+                <p>Pitch</p>
+                <input type="range" min="0.0" max="2.0" value="1.0" step="0.1" x-model="$store.settings.pitch" />
+            </div>
+        </div>
+
+        <div style="flex: auto; flex-direction: column;">
+
+            <ul style="list-style: decimal;">
+                <template x-for="line in $store.settings.lines.split('\n').filter(Boolean)">
+                    <li><a x-text="line" target="_blank"></a></li>
+                </template>
+            </ul>
+
+        </div>
+
+
+
+    </div>
+
+    <script>
+        const setQueryStringParameter = (name, value) => {
+            const params = new URLSearchParams(window.location.search)
+            params.set(name, value)
+
+            const url = decodeURIComponent(`${window.location.pathname}?${params}`)
+            window.history.replaceState({}, '', url)
+
+            return url
+        }
+
+        let defaultSettings = {
+            lines: '', volume: 1, rate: 1, pitch: 1, voice: speechSynthesis.getVoices()[0]
+        }
+
+        Spruce.store('settings', {})
+
+
+        const playLine = (line, index) => {
+            let utter = new SpeechSynthesisUtterance(line);
+            utter.voice = speechSynthesis.getVoices().filter(x => x.voiceURI === $store.settings.voice)[0]
+            utter.volume = $store.settings.volume;
+            utter.rate = $store.settings.rate;
+            utter.pitch = $store.settings.pitch;
+
+            utter.onend = function () {
+                $store.settings.playhead = index
+            }
+
+            window.speechSynthesis.speak(utter);
+        }
+
+        const playLines = (lines) => {
+            lines.splice(0, $store.settings.playhead)
+
+            lines.map((line, index) => {
+                playLine(line, index)
+            });
+        }
+
+
+        // get settings
+        if (typeof gotSettingsFromURL === 'undefined') {
+            window.gotSettingsFromURL = true;
+
+            var urlParams = new URLSearchParams(window.location.search)
+
+            let settingsFromURL = {}
+            Object.keys(defaultSettings).forEach((key, index) => {
+                if (urlParams.has(key)) {
+                    var settingsParam = JSON.parse(urlParams.get(key))
+
+                    if (settingsParam != null) {
+                        Object.assign(settingsFromURL, { [key]: settingsParam })
+                    }
+
+                } else {
+                    Object.assign(settingsFromURL, { [key]: defaultSettings[key] })
+                }
+            })
+            Spruce.reset('settings', settingsFromURL)
+        }
+
+
+
+
+
+        // save settings
+        Object.keys(defaultSettings).forEach((key, index) => {
+            Spruce.watch(`settings.${key}`, (old, next) => {
+                setQueryStringParameter(key, encodeURIComponent(JSON.stringify(next)))
+            })
+        })
+
+
+    </script>
+</body>
+
+</html>
